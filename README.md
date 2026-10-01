@@ -1,136 +1,140 @@
 # Kubernetes Dashboard
 
-A web dashboard for inspecting Kubernetes cluster resources and operating workloads. It is built with Next.js and can show demo data or query a cluster through the Kubernetes client.
+A modern Next.js dashboard for exploring Kubernetes cluster health, workloads, and operational details. The project is designed for local demos, developer workflows, and cluster inspection, with a demo mode that works without a live cluster connection.
 
-> **Status: experimental.** The interface and API routes are under active development. Demo data, placeholder metrics, and client-side demo authentication are present. Do not expose this application to an untrusted network or use it to manage production clusters.
+> Status: experimental and demo-oriented. This app is useful for visualizing cluster state and workflow concepts, but it should not be treated as a hardened production monitoring or control plane.
 
-## What It Includes
+## What this app includes
 
-- Cluster overview, nodes, namespaces, pods, services, and workload pages.
-- Views for Deployments, StatefulSets, DaemonSets, Jobs, and CronJobs.
-- Storage, autoscaling, configuration, security, Helm, Gateway API, and CRD views.
-- Pod logs and exec tools, YAML viewing, resource actions, and a terminal interface.
-- An AI workloads page for GPU and AI-serving workload inventory.
-- Demo mode with generated sample cluster data.
+- Cluster overview cards for nodes, pods, services, and namespaces
+- Resource views for workloads and infrastructure, including:
+  - Pods
+  - Nodes
+  - Namespaces
+  - Services
+  - Deployments
+  - StatefulSets
+  - DaemonSets
+  - Jobs
+  - CronJobs
+  - Storage
+  - Autoscaling
+  - Configuration
+  - Security
+  - Gateway resources
+  - CRDs
+  - Helm
+  - Topology
+  - Monitoring
+- Interactive operational tools such as:
+  - Terminal access
+  - Pod logs
+  - Pod exec flow
+  - YAML viewing
+  - Quick actions
+  - Activity feed
+- AI workloads inventory page for workload visibility and experimentation
+- Demo authentication flow and synthetic cluster data for local development
 
-Some screens or metrics use demo/fallback data and may not reflect live cluster state. The AI workloads page is an inventory view; this repository does not currently include an LLM/provider integration or AI-generated troubleshooting assistant.
+## Tech stack
 
-## Architecture
+- Next.js 16
+- React 19
+- TypeScript
+- Tailwind CSS
+- shadcn-style UI components
+- Kubernetes client library
+- Recharts, Framer Motion, xterm.js
 
-- `src/app/` contains the Next.js App Router pages and API route handlers.
-- `src/components/` contains shared dashboard and resource UI.
-- `src/lib/api-client.ts` connects the browser UI to the app's API routes.
-- `src/lib/k8s-client.ts` loads Kubernetes configuration for server-side API handlers; `src/lib/k8s-store.ts` and `src/lib/demo-data.ts` provide fallback and demo data.
+## Project structure
 
-In demo mode, API routes return sample data. Outside demo mode, routes use the available Kubernetes configuration where implemented; some pages and metrics still use placeholder or fallback values.
-
-```mermaid
-flowchart LR
-	Operator[Operator] --> UI[Next.js pages and components]
-	UI --> Client[Browser API client]
-	Client --> Routes[Next.js API routes]
-	Routes --> KubeClient[Kubernetes client]
-	KubeClient --> Cluster[Kubernetes API]
-	Routes -. "Demo mode or fallback" .-> DemoData[Demo and fallback data]
-
-	subgraph Dashboard[Dashboard application]
-		UI
-		Client
-		Routes
-		KubeClient
-		DemoData
-	end
-
-	subgraph Environment[Cluster access]
-		Cluster
-		Credentials[Kubeconfig or in-cluster ServiceAccount]
-		Credentials -. configures .-> KubeClient
-	end
+```text
+src/
+  app/
+    api/              # Next.js route handlers for cluster data and actions
+    ...               # Dashboard pages for pods, services, workloads, config, etc.
+  components/
+    ui/               # Shared component primitives
+    ...               # Dashboard widgets, dialogs, and layout pieces
+  contexts/
+    auth-context.tsx  # Demo auth and local session handling
+  hooks/
+    ...               # Real-time and polling hooks
+  lib/
+    api-client.ts     # UI-side API access layer
+    k8s-client.ts     # Kubernetes client setup
+    k8s-store.ts      # Cluster data store / fallback logic
+    demo-data.ts      # Sample data for demo mode
 ```
 
-## Requirements
+## Prerequisites
 
-- Node.js 20.9 or later and npm.
-- Docker and Docker Compose for the container workflow.
-- `kubectl` and access to a Kubernetes cluster only if using the Kubernetes manifests.
+- Node.js 20.9 or newer
+- npm
+- A Kubernetes kubeconfig if you want to connect to a real cluster
+- Optional: Docker for containerized local runs
 
-## Run Locally
+## Run locally
+
+Install dependencies:
 
 ```bash
-npm ci
+npm install
+```
+
+Start the development server:
+
+```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). In demo mode, the app uses sample data and automatically signs in with its demo identity. The sign-in page also displays the demo credentials: `admin@k8s.local` / `admin123`.
+Then open http://localhost:3000.
 
-To enable demo mode during local development, add this to `.env.local` before starting the dev server:
+## Demo mode
 
-```dotenv
+This project supports a demo mode for local development without a live Kubernetes connection. Enable it in your environment:
+
+```bash
 NEXT_PUBLIC_DEMO_MODE=true
 ```
 
-Without demo mode, the app attempts to use the available kubeconfig; the sign-in screen still uses demo-only client-side credentials.
+Add that to a `.env.local` file before starting the app. In demo mode:
 
-For a production build:
+- the app auto-authenticates a demo user
+- the sign-in screen accepts:
+  - email: `admin@k8s.local`
+  - password: `admin123`
+- synthetic Kubernetes data is returned instead of live cluster data
+
+## Production / live cluster mode
+
+When `NEXT_PUBLIC_DEMO_MODE` is not enabled, the app attempts to use the local Kubernetes configuration available to the Node.js process. In a real setup, make sure the runtime environment has access to the correct kubeconfig context or in-cluster service account permissions.
+
+Important caveats:
+
+- The demo auth is not a security boundary.
+- Do not expose the app publicly without proper auth, network controls, and a hardened deployment model.
+- Do not mount or expose sensitive kubeconfig files in a shared or public environment.
+
+## Useful scripts
 
 ```bash
-npm run build
-npm run start
+npm run dev         # start the Next.js dev server
+npm run build      # create a production build
+npm run start      # run the production build
+npm run lint       # run ESLint
+npm run type-check # run TypeScript checks
 ```
 
-Other checks:
+## Security notes
 
-```bash
-npm run lint
-npm run type-check
-```
+This project is a dashboard for experimentation and demos, not a production-ready Kubernetes control plane. The app includes local demo authentication, generated data, and placeholder behavior in several areas. Before using it against a real cluster,
 
-## Docker Demo
-
-The Compose configuration builds and starts the dashboard in demo mode on port 3000:
-
-```bash
-docker compose up --build
-```
-
-Open [http://localhost:3000](http://localhost:3000). Stop it with `docker compose down`. This configuration does not connect the container to your Kubernetes cluster.
-
-## Connect to a Cluster
-
-When demo mode is disabled, the server-side Kubernetes client loads its configuration using the standard Kubernetes client configuration lookup. For local development, make sure the account running Next.js can access the intended kubeconfig and context, then start the app without `NEXT_PUBLIC_DEMO_MODE=true`.
-
-The Compose file sets demo mode to `true` and leaves its kubeconfig mount commented out. Changing only the mount is not sufficient to enable live cluster data; configure the container's credentials and disable demo mode deliberately. Do not mount a broadly privileged personal kubeconfig into a publicly reachable container.
-
-### Kubernetes Manifests: Review Before Use
-
-The files under `k8s/` are examples, not production-ready deployment instructions. Before applying them, review and change the permissions and credentials:
-
-- The ClusterRole grants cluster-wide create, update, patch, and delete permissions, including access to Secrets.
-- The ConfigMap manifest includes a Secret with sample credentials; base64 encoding is not encryption.
-- The application sign-in is implemented in client-side code with hard-coded demo credentials. It is not a security boundary, and the Kubernetes API routes must not be treated as protected by that sign-in.
-- The manifests use the `kubernetes-dashboard:latest` image. Build and make an appropriately tagged image available to your cluster before deploying.
-
-Only after reviewing and replacing these settings should you consider `npm run k8s:deploy`. The script applies every manifest in `k8s/` to the currently selected cluster and namespace. Use a least-privilege ServiceAccount and real authentication before connecting this dashboard to sensitive workloads.
-
-## Configuration and Scripts
-
-| Command | Purpose |
-| --- | --- |
-| `npm run dev` | Start the Next.js development server |
-| `npm run build` | Build the production app |
-| `npm run start` | Start the production app |
-| `npm run lint` | Run ESLint |
-| `npm run type-check` | Run the TypeScript compiler without emitting files |
-| `npm run docker:build` | Build the `kubernetes-dashboard` image |
-| `npm run docker:run` | Run the image on port 3000 |
-| `npm run docker:compose` | Start the Compose service in the background |
-| `npm run docker:stop` | Stop the Compose service |
-| `npm run k8s:deploy` | Apply manifests from `k8s/` to the current cluster |
-| `npm run k8s:delete` | Delete manifests from `k8s/` in the current cluster |
-| `npm run k8s:status` | Show matching pods and services |
-
-Demo mode is controlled in client and server code by `NEXT_PUBLIC_DEMO_MODE`. The Compose configuration sets it to `true`. Keep credentials and cluster access out of committed files; the current manifests are examples and must be hardened before use.
+- review the permissions granted to the account running the app
+- keep credentials out of source control
+- avoid public exposure without additional auth and network safeguards
+- treat the UI as a convenience layer, not a security control
 
 ## Contributing
 
-Bug reports and focused improvements are welcome. Please include reproduction steps for bugs and avoid committing credentials, kubeconfig files, or real cluster data.
+Contributions are welcome for bug fixes, UI polish, resource coverage, and cluster integration improvements. Please avoid committing real kubeconfig data, secrets, or production cluster information.
