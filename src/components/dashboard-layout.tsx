@@ -26,7 +26,7 @@ import {
   Terminal,
   Scale,
   BrainCircuit,
-  Broom,
+  Trash2,
   LucideIcon
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
@@ -70,7 +70,7 @@ const mainNavItems = [
   { name: "Helm Hub", href: "/helm", icon: Sparkles },
   { name: "Nodes", href: "/nodes", icon: Server },
   { name: "Namespaces", href: "/namespaces", icon: Layers },
-  { name: "Cluster Janitor", href: "/janitor", icon: Broom },
+  { name: "Cluster Janitor", href: "/janitor", icon: Trash2 },
   { name: "Cluster Events", href: "/events", icon: Bell },
 ]
 
@@ -137,8 +137,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   return (
     <SidebarProvider defaultOpen={true}>
-      <Sidebar variant="inset" collapsible="icon" className="border-r border-border/70">
-        <SidebarHeader className="pb-2">
+      <div className="relative min-h-screen w-full">
+        <div className="mesh-background" />
+        <Sidebar variant="inset" collapsible="icon" className="border-r border-border/70">
+          <SidebarHeader className="pb-2">
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton size="lg" asChild className="hover:bg-sidebar-accent/70 transition-colors">
@@ -322,6 +324,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           {children}
         </main>
       </SidebarInset>
-    </SidebarProvider>
-  )
+    </div>
+  </SidebarProvider>
+)
 }

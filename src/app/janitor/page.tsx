@@ -1,20 +1,21 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import React, { useEffect, useState, useCallback } from "react"
 import { DashboardLayout } from "@/components/dashboard-layout"
+import { cn } from "@/lib/utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
 import { apiClient, Pod } from "@/lib/api-client"
 import { useToast } from "@/contexts/toast-context"
 import {
   Trash2,
-  Broom,
+  RefreshCw,
   AlertTriangle,
   Search,
-  RefreshCw,
   Loader2,
   CheckCircle2,
   XCircle
@@ -97,23 +98,26 @@ export default function JanitorPage() {
     }
   }
 
-  const filteredPods = pods.filter(pod => {
-    const matchesSearch = pod.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         pod.namespace.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredPods = React.useMemo(() => {
+    return pods.filter(pod => {
+      const matchesSearch = pod.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          pod.namespace.toLowerCase().includes(searchTerm.toLowerCase())
 
-    // "Janitor" logic: target Evicted, Succeeded (non-job), Failed, or CrashLoop
-    const isGarbage =
-      pod.status?.toLowerCase() === 'evicted' ||
-      pod.status?.toLowerCase() === 'succeeded' ||
-      pod.status?.toLowerCase() === 'failed' ||
-      pod.status?.toLowerCase().includes('crashloop')
+      const isGarbage =
+        pod.status?.toLowerCase() === 'evicted' ||
+        pod.status?.toLowerCase() === 'succeeded' ||
+        pod.status?.toLowerCase() === 'failed' ||
+        pod.status?.toLowerCase().includes('crashloop')
 
-    const matchesStatus = statusFilter === "all" ||
-                         (statusFilter === "garbage" && isGarbage) ||
-                         (statusFilter === "healthy" && !isGarbage)
+      const matchesStatus = statusFilter === "all" ||
+                           (statusFilter === "garbage" && isGarbage) ||
+                           (statusFilter === "healthy" && !isGarbage)
 
-    return matchesSearch && matchesStatus
-  })
+      return matchesSearch && matchesStatus
+    })
+  }, [pods, searchTerm, statusFilter])
+
+  const displayedPods = React.useMemo(() => filteredPods.slice(0, 100), [filteredPods])
 
   return (
     <DashboardLayout>
@@ -121,7 +125,7 @@ export default function JanitorPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex size-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 border border-amber-500/20">
-              <Broom className="size-5" />
+              <Trash2 className="size-5" />
             </div>
             <div>
               <h1 className="text-xl font-bold tracking-tight text-foreground">Cluster Janitor</h1>
@@ -210,7 +214,7 @@ export default function JanitorPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredPods.map((pod) => {
+                  displayedPods.map((pod) => {
                     const podKey = `${pod.namespace}:${pod.name}`
                     const isSelected = selectedPods.has(podKey)
                     const isGarbage =

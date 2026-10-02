@@ -42,6 +42,8 @@ export default function PodsPage() {
   const [selectedPods, setSelectedPods] = useState<Set<string>>(new Set())
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [pendingActions, setPendingActions] = useState<Set<string>>(new Set())
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
 
   const {
     pods,
@@ -96,17 +98,17 @@ export default function PodsPage() {
 
   const { success, error: showError, info } = useToast()
 
-  const fetchPods = useCallback(async () => {
-    // Deprecated: useRealTimePods hook now handles fetching
-  }, [])
+  const refreshWithLoading = async () => {
+    setIsRefreshing(true)
+    try {
+      await refresh()
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
 
-  useEffect(() => {
-    // Deprecated
-  }, [fetchPods])
 
-  useEffect(() => {
-    // Deprecated
-  }, [fetchPods])
+  // Removed deprecated useEffects that relied on non-existent fetchPods function
 
   const deletePod = async (pod: Pod) => {
     const podKey = `${pod.namespace}:${pod.name}`
@@ -298,18 +300,18 @@ export default function PodsPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={refresh}
+              onClick={refreshWithLoading}
               className={isConnected ? "border-primary text-primary" : "opacity-50"}
             >
-              <RefreshCw className={`size-3.5 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`size-3.5 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
               {isConnected ? 'Connected' : 'Connecting...'}
             </Button>
             <Button variant="outline" size="sm" onClick={exportPodData}>
               <Download className="size-3.5 mr-2" />
               Export
             </Button>
-            <Button size="sm" onClick={refresh}>
-              <RefreshCw className={`size-3.5 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            <Button size="sm" onClick={refreshWithLoading}>
+              <RefreshCw className={`size-3.5 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
           </div>

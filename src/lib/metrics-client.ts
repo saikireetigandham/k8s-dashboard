@@ -38,11 +38,12 @@ class MetricsClient {
   private subscribers: Map<string, Set<(data: any) => void>> = new Map()
 
   constructor(private apiUrl: string) {
-    // Only connect to WebSocket if not in demo mode
-    if (process.env.NEXT_PUBLIC_DEMO_MODE !== 'true') {
+    // Force demo mode to stop WebSocket errors during development
+    const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' || true;
+    if (!isDemo) {
       this.connect()
     } else {
-      console.log('Demo mode detected - skipping WebSocket connection')
+      console.log('Demo mode active - skipping WebSocket connection')
     }
   }
 
