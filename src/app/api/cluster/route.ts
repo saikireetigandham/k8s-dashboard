@@ -13,6 +13,11 @@ export async function GET(request: NextRequest) {
     const coreApi = kc.makeApiClient(k8s.CoreV1Api)
     const versionApi = kc.makeApiClient(k8s.VersionApi)
 
+    const currentContextName = kc.getCurrentContext()
+    const contexts = kc.getContexts()
+    const currentCtx = contexts.find(c => c.name === currentContextName)
+    const currentUser = currentCtx?.user || 'unknown-user'
+
     const [versionRes, nodesRes, podsRes, svcRes, nsRes] = await Promise.all([
       versionApi.getCode(),
       coreApi.listNode(),
@@ -22,8 +27,9 @@ export async function GET(request: NextRequest) {
     ])
 
     return NextResponse.json({
-      name: currentContext || kc.getCurrentCluster()?.name || 'Kubernetes cluster',
+      name: currentContextName || kc.getCurrentCluster()?.name || 'Kubernetes cluster',
       version: `v${versionRes.major}.${versionRes.minor}`,
+      user: currentUser,
       nodes: nodesRes.items.length,
       pods: podsRes.items.length,
       services: svcRes.items.length,

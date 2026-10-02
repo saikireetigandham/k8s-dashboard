@@ -14,9 +14,11 @@ import { apiClient, Pod } from "@/lib/api-client"
 import { useToast } from "@/contexts/toast-context"
 import { PodLogsDialog } from "@/components/pod-logs-dialog"
 import { PodExecDialog } from "@/components/pod-exec-dialog"
-import { YamlViewerDialog } from "@/components/yaml-viewer-dialog"
-import { 
-  Container, 
+import { YamlEditorDialog } from "@/components/yaml-editor-dialog"
+import { useRealTimePods } from "@/hooks/use-real-time-pods"
+import { PodResourceGraph } from "@/components/pod-resource-graph"
+import {
+  Container,
   MoreHorizontal,
   AlertTriangle,
   CheckCircle2,
@@ -30,19 +32,25 @@ import {
   Download,
   Eye,
   Layers,
-  Cpu
+  Cpu,
+  Loader2
 } from "lucide-react"
 
 export default function PodsPage() {
-  const [pods, setPods] = useState<Pod[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [selectedNamespace, setSelectedNamespace] = useState<string>("all")
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedPods, setSelectedPods] = useState<Set<string>>(new Set())
-  const [autoRefresh, setAutoRefresh] = useState(false)
   const [statusFilter, setStatusFilter] = useState<string>("all")
-  
+  const [pendingActions, setPendingActions] = useState<Set<string>>(new Set())
+
+  const {
+    pods,
+    podMetrics,
+    isConnected,
+    error: hookError,
+    refresh
+  } = useRealTimePods(selectedNamespace === "all" ? undefined : selectedNamespace)
+
   // Interactive Dialogs
   const [logsDialog, setLogsDialog] = useState<{
     open: boolean
@@ -89,52 +97,52 @@ export default function PodsPage() {
   const { success, error: showError, info } = useToast()
 
   const fetchPods = useCallback(async () => {
-    try {
-      setLoading(true)
-      const data = await apiClient.getPods(
-        selectedNamespace === "all" ? undefined : selectedNamespace
-      )
-      setPods(data)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch pods')
-    } finally {
-      setLoading(false)
-    }
-  }, [selectedNamespace])
+    // Deprecated: useRealTimePods hook now handles fetching
+  }, [])
 
   useEffect(() => {
-    fetchPods()
+    // Deprecated
   }, [fetchPods])
 
   useEffect(() => {
-    let interval: NodeJS.Timeout
-    if (autoRefresh) {
-      interval = setInterval(fetchPods, 5000)
-    }
-    return () => {
-      if (interval) clearInterval(interval)
-    }
-  }, [autoRefresh, fetchPods])
+    // Deprecated
+  }, [fetchPods])
 
   const deletePod = async (pod: Pod) => {
+    const podKey = `${pod.namespace}:${pod.name}`
     if (!confirm(`Are you sure you want to delete pod ${pod.name}?`)) return
+
     try {
+      setPendingActions(prev => new Set(prev).add(podKey))
       await apiClient.deleteResource('Pod', pod.name, pod.namespace)
       success(`Pod ${pod.name} deleted successfully`)
-      fetchPods()
+      refresh()
     } catch (error) {
       showError(`Failed to delete pod ${pod.name}`)
+    } finally {
+      setPendingActions(prev => {
+        const next = new Set(prev)
+        next.delete(podKey)
+        return next
+      })
     }
   }
 
   const restartPod = async (pod: Pod) => {
+    const podKey = `${pod.namespace}:${pod.name}`
     try {
+      setPendingActions(prev => new Set(prev).add(podKey))
       await apiClient.restartPod(pod.name, pod.namespace)
       success(`Pod ${pod.name} restarted successfully`)
-      fetchPods()
+      refresh()
     } catch (error) {
       showError(`Failed to restart pod ${pod.name}`)
+    } finally {
+      setPendingActions(prev => {
+        const next = new Set(prev)
+        next.delete(podKey)
+        return next
+      })
     }
   }
 
@@ -144,18 +152,26 @@ export default function PodsPage() {
       return
     }
     if (!confirm(`Delete ${selectedPods.size} selected pods?`)) return
-    
+
     try {
       const keys = Array.from(selectedPods)
-      for (const key of keys) {
-        const [ns, name] = key.split(':')
-        await apiClient.deleteResource('Pod', name, ns)
-      }
-      success(`${selectedPods.size} pods deleted`)
+      const results = await Promise.allSettled(
+        keys.map(async (key) => {
+          const [ns, name] = key.split(':')
+          return apiClient.deleteResource('Pod', name, ns)
+        })
+      )
+
+      const successful = results.filter(r => r.status === 'fulfilled').length
+      const failed = results.filter(r => r.status === 'rejected').length
+
+      if (successful > 0) success(`${successful} pods deleted successfully`)
+      if (failed > 0) showError(`${failed} pods failed to delete`)
+
       setSelectedPods(new Set())
-      fetchPods()
+      refresh()
     } catch (error) {
-      showError('Failed to delete selected pods')
+      showError('Failed to perform bulk deletion')
     }
   }
 
@@ -200,7 +216,7 @@ export default function PodsPage() {
     if (selectedPods.size === filteredPods.length) {
       setSelectedPods(new Set())
     } else {
-      setSelectedPods(new Set(filteredPods.map(pod => `${pod.namespace}:${pod.name}:${pod.node || ''}`)))
+      setSelectedPods(new Set(filteredPods.map(pod => `${pod.namespace}:${pod.name}`)))
     }
   }
 
@@ -237,7 +253,7 @@ export default function PodsPage() {
   const filteredPods = pods.filter(pod => {
     const matchesSearch = pod.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          pod.namespace.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = statusFilter === "all" || 
+    const matchesStatus = statusFilter === "all" ||
                          (statusFilter === "running" && pod.status === "Running") ||
                          (statusFilter === "failed" && ['Failed', 'CrashLoopBackOff', 'Error'].includes(pod.status)) ||
                          (statusFilter === "pending" && pod.status === 'Pending')
@@ -247,6 +263,19 @@ export default function PodsPage() {
   const runningPods = pods.filter(p => p.status === 'Running').length
   const failedPods = pods.filter(p => ['Failed', 'CrashLoopBackOff', 'Error'].includes(p.status)).length
   const totalRestarts = pods.reduce((acc, pod) => acc + (pod.restarts || 0), 0)
+
+  if (hookError) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4 text-center">
+          <AlertTriangle className="size-12 text-destructive" />
+          <h2 className="text-xl font-bold">Connection Error</h2>
+          <p className="text-muted-foreground max-w-md">{hookError}</p>
+          <Button onClick={refresh}>Try Again</Button>
+        </div>
+      </DashboardLayout>
+    )
+  }
 
   return (
     <DashboardLayout>
@@ -266,20 +295,20 @@ export default function PodsPage() {
           </div>
           
           <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setAutoRefresh(!autoRefresh)}
-              className={autoRefresh ? "border-primary text-primary" : ""}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={refresh}
+              className={isConnected ? "border-primary text-primary" : "opacity-50"}
             >
-              <RefreshCw className={`size-3.5 mr-2 ${autoRefresh ? 'animate-spin' : ''}`} />
-              {autoRefresh ? 'Live Streaming' : 'Auto Refresh'}
+              <RefreshCw className={`size-3.5 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              {isConnected ? 'Connected' : 'Connecting...'}
             </Button>
             <Button variant="outline" size="sm" onClick={exportPodData}>
               <Download className="size-3.5 mr-2" />
               Export
             </Button>
-            <Button size="sm" onClick={fetchPods}>
+            <Button size="sm" onClick={refresh}>
               <RefreshCw className={`size-3.5 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
@@ -524,7 +553,7 @@ export default function PodsPage() {
         />
 
         {/* YAML Dialog */}
-        <YamlViewerDialog
+        <YamlEditorDialog
           open={yamlDialog.open}
           onOpenChange={open => setYamlDialog(prev => ({ ...prev, open }))}
           resourceKind="Pod"
@@ -567,6 +596,15 @@ export default function PodsPage() {
               </div>
 
               <div>
+                <h4 className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
+                  Resource Usage (Last 50 points)
+                </h4>
+                <PodResourceGraph
+                  metrics={podMetrics.filter(m => m.podName === detailsDialog.pod?.name)}
+                />
+              </div>
+
+              <div className="pt-4">
                 <h4 className="font-semibold text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
                   Containers ({detailsDialog.pod?.containers?.length || 1})
                 </h4>

@@ -12,9 +12,9 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { apiClient, Deployment } from "@/lib/api-client"
 import { useToast } from "@/contexts/toast-context"
-import { YamlViewerDialog } from "@/components/yaml-viewer-dialog"
-import { 
-  Database, 
+import { YamlEditorDialog } from "@/components/yaml-editor-dialog"
+import {
+  Database,
   MoreHorizontal,
   RefreshCw,
   Search,
@@ -28,7 +28,8 @@ import {
   Sliders,
   FileCode2,
   Layers,
-  GitBranch
+  GitBranch,
+  Loader2
 } from "lucide-react"
 
 export default function DeploymentsPage() {
@@ -40,6 +41,7 @@ export default function DeploymentsPage() {
   const [selectedDeployments, setSelectedDeployments] = useState<Set<string>>(new Set())
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [autoRefresh, setAutoRefresh] = useState(false)
+  const [pendingActions, setPendingActions] = useState<Set<string>>(new Set())
 
   // Scale Modal
   const [scaleDialog, setScaleDialog] = useState<{
@@ -399,14 +401,15 @@ export default function DeploymentsPage() {
                 {filteredDeployments.map((d) => {
                   const depKey = `${d.namespace}:${d.name}`
                   const isSelected = selectedDeployments.has(depKey)
-                  
+                  const isPending = pendingActions.has(depKey)
+
                   return (
                     <TableRow
                       key={depKey}
                       className={isSelected ? 'bg-muted/60' : ''}
                     >
                       <TableCell className="text-center">
-                        <Checkbox 
+                        <Checkbox
                           checked={isSelected}
                           onCheckedChange={() => toggleSelection(depKey)}
                         />
@@ -418,11 +421,11 @@ export default function DeploymentsPage() {
                         </div>
                         {d.gitops && (
                           <div className="mt-1 flex items-center gap-1">
-                            <Badge 
-                              variant="outline" 
+                            <Badge
+                              variant="outline"
                               className={`text-[10px] px-1 py-0 h-4 border font-mono ${
-                                d.gitops.manager === 'argocd' 
-                                  ? 'border-orange-500/40 text-orange-400 bg-orange-500/10' 
+                                d.gitops.manager === 'argocd'
+                                  ? 'border-orange-500/40 text-orange-400 bg-orange-500/10'
                                   : 'border-sky-500/40 text-sky-400 bg-sky-500/10'
                               }`}
                             >
@@ -448,6 +451,7 @@ export default function DeploymentsPage() {
                           <Button
                             size="sm"
                             variant="outline"
+                            disabled={isPending}
                             onClick={() =>
                               setScaleDialog({
                                 open: true,
@@ -461,19 +465,19 @@ export default function DeploymentsPage() {
                           </Button>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon-sm" className="size-7.5 rounded-lg p-0">
-                                <MoreHorizontal className="size-4" />
+                              <Button variant="ghost" size="icon-sm" className="size-7.5 rounded-lg p-0" disabled={isPending}>
+                                {isPending ? <Loader2 className="size-4 animate-spin" /> : <MoreHorizontal className="size-4" />}
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleRestartDeployment(d)}>
+                              <DropdownMenuItem onClick={() => handleRestartDeployment(d)} disabled={isPending}>
                                 <RotateCcw className="size-3.5 mr-2" /> Rolling Restart
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => setYamlDialog({ open: true, name: d.name, namespace: d.namespace })}>
                                 <FileCode2 className="size-3.5 mr-2" /> View YAML
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem variant="destructive" onClick={() => handleDeleteDeployment(d)}>
+                              <DropdownMenuItem variant="destructive" onClick={() => handleDeleteDeployment(d)} disabled={isPending}>
                                 <Trash2 className="size-3.5 mr-2" /> Delete Deployment
                               </DropdownMenuItem>
                             </DropdownMenuContent>
@@ -578,7 +582,7 @@ export default function DeploymentsPage() {
         </Dialog>
 
         {/* YAML Dialog */}
-        <YamlViewerDialog
+        <YamlEditorDialog
           open={yamlDialog.open}
           onOpenChange={open => setYamlDialog(prev => ({ ...prev, open }))}
           resourceKind="Deployment"

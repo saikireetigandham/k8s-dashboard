@@ -33,6 +33,7 @@ export const viewport: Viewport = {
 };
 
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ClusterProvider } from "@/contexts/cluster-context";
 
 export default function RootLayout({
   children,
@@ -43,13 +44,15 @@ export default function RootLayout({
     <html lang="en" className={cn("font-sans", instrumentSans.variable)}>
       <body className={`${inter.variable} font-sans antialiased`}>
         <TooltipProvider>
-          <ToastProvider>
-            <AuthProvider>
-              <LanguageProvider>
-                {children}
-              </LanguageProvider>
-            </AuthProvider>
-          </ToastProvider>
+          <ClusterProvider>
+            <ToastProvider>
+              <AuthProvider>
+                <LanguageProvider>
+                  {children}
+                </LanguageProvider>
+              </AuthProvider>
+            </ToastProvider>
+          </ClusterProvider>
           <Toaster position="top-right" />
         </TooltipProvider>
       </body>

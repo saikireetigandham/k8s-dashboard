@@ -4,19 +4,19 @@ import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { 
-  Activity, 
-  Container, 
-  Database, 
-  Home, 
-  Network, 
-  Settings, 
-  Server, 
-  Shield, 
-  Layers, 
-  Boxes, 
-  KeyRound, 
-  Bell, 
+import {
+  Activity,
+  Container,
+  Database,
+  Home,
+  Network,
+  Settings,
+  Server,
+  Shield,
+  Layers,
+  Boxes,
+  KeyRound,
+  Bell,
   LogOut,
   Sparkles,
   HardDrive,
@@ -26,10 +26,13 @@ import {
   Terminal,
   Scale,
   BrainCircuit,
-  LucideIcon 
+  Broom,
+  LucideIcon
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/contexts/toast-context"
+import { useClusterHealth } from "@/hooks/use-cluster-health"
+import { useCluster } from "@/contexts/cluster-context"
 import { EnhancedSearch } from "@/components/enhanced-search"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -67,6 +70,8 @@ const mainNavItems = [
   { name: "Helm Hub", href: "/helm", icon: Sparkles },
   { name: "Nodes", href: "/nodes", icon: Server },
   { name: "Namespaces", href: "/namespaces", icon: Layers },
+  { name: "Cluster Janitor", href: "/janitor", icon: Broom },
+  { name: "Cluster Events", href: "/events", icon: Bell },
 ]
 
 const secondaryNavItems = [
@@ -86,6 +91,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname()
   const { signOut } = useAuth()
   const { success } = useToast()
+  const { status: clusterStatus } = useClusterHealth()
+  const { setClusterState, refreshCluster } = useCluster()
   const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true"
 
   const [contexts, setContexts] = React.useState<ContextItem[]>([])
@@ -106,10 +113,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       setSwitchingContext(true)
       await apiClient.switchContext(newContext)
       setCurrentContext(newContext)
+
+      // Update global cluster state instead of full page reload
+      setClusterState({
+        context: newContext,
+        version: 'unknown', // Will be updated on next fetch
+        user: 'admin'
+      })
+
+      refreshCluster()
       success(`Switched active cluster to ${newContext}`)
-      setTimeout(() => {
-        window.location.reload()
-      }, 400)
     } catch {
       // Keep state
     } finally {
@@ -271,7 +284,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     {contexts.map((ctx) => (
                       <SelectItem key={ctx.name} value={ctx.name} className="text-xs">
                         <div className="flex flex-col text-left">
-                          <span className="font-semibold text-foreground font-mono truncate">{ctx.name}</span>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-semibold text-foreground font-mono truncate">{ctx.name}</span>
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-3 font-mono opacity-70">
+                              {ctx.user}
+                            </Badge>
+                          </div>
                           <span className="text-[10px] text-muted-foreground truncate">{ctx.cluster}</span>
                         </div>
                       </SelectItem>
